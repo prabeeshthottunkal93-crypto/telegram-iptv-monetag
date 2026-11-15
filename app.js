@@ -34,7 +34,12 @@
     adPanel.hidden = true; adVideo.pause();
     if (hls) { hls.destroy(); hls = null; }
     player.pause(); player.removeAttribute("src"); player.load(); message.textContent = "Loading channel…"; message.classList.remove("hide");
-    if (window.Hls && Hls.isSupported()) {
+    const isHls = /\.m3u8(?:$|[?#])/i.test(url) || /m3u8/i.test(url);
+    if (!isHls) {
+      player.src = url;
+      player.addEventListener("loadedmetadata", () => { message.classList.add("hide"); player.play().catch(() => { message.textContent = "Press play to start the demo video."; message.classList.remove("hide"); }); }, { once: true });
+      player.addEventListener("error", () => { message.textContent = "Unable to play this video. Try another stream."; message.classList.remove("hide"); }, { once: true });
+    } else if (window.Hls && Hls.isSupported()) {
       hls = new Hls({ enableWorker: true }); hls.loadSource(url); hls.attachMedia(player);
       hls.on(Hls.Events.MANIFEST_PARSED, () => { message.classList.add("hide"); player.play().catch(() => { message.textContent = "Press play to start the channel."; message.classList.remove("hide"); }); });
       hls.on(Hls.Events.ERROR, (_e, data) => { if (data.fatal) { message.textContent = "Unable to play this stream. It may be offline, blocked, or incompatible."; message.classList.remove("hide"); hls.destroy(); hls = null; } });
@@ -74,7 +79,13 @@
 
   const playlistUrl = cfg.playlistUrl || "https://iptv-org.github.io/iptv/index.m3u";
   fetch(playlistUrl).then(r => { if (!r.ok) throw new Error("Playlist request failed (" + r.status + ")."); return r.text(); })
-    .then(text => { allChannels = parseM3U(text); if (!allChannels.length) throw new Error("No channels were found in the M3U playlist."); renderChannels(); })
+    .then(text => {
+      allChannels = [
+        { name: "Demo Video – Flower", category: "Demo", description: "Sample MP4 video for testing playback", streamUrl: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4" },
+        ...parseM3U(text)
+      ];
+      renderChannels();
+    })
     .catch(err => {
       channelsEl.replaceChildren(); const p = document.createElement("p"); p.className = "muted";
       p.textContent = err.message + " The playlist host may block browser requests (CORS), or be temporarily unavailable. Try again later or configure a CORS-enabled playlist source.";
