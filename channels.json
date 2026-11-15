@@ -1,0 +1,8 @@
+[
+  {
+    "name": "Add your first channel",
+    "category": "Demo",
+    "streamUrl": "",
+    "description": "Edit channels.json and add an authorized M3U8 stream URL."
+  }
+]
