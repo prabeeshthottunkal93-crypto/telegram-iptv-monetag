@@ -3,9 +3,22 @@
   const player = document.getElementById("player"), adPanel = document.getElementById("ad-panel"), adVideo = document.getElementById("ad-video");
   const continueButton = document.getElementById("continue-button"), sponsorLink = document.getElementById("monetag-link"), message = document.getElementById("player-message"), channelsEl = document.getElementById("channels");
   const searchInput = document.getElementById("channel-search");
+  const playerWrap = document.querySelector(".player-wrap");
+  const rotateButton = document.getElementById("rotate-button");
   let hls = null, selectedStream = "", adFinished = false, allChannels = [];
   const tg = window.Telegram && window.Telegram.WebApp;
   if (tg) { tg.ready(); tg.expand(); document.getElementById("tg-status").textContent = "Telegram Mini App"; }
+
+  rotateButton.addEventListener("click", async () => {
+    try {
+      if (document.fullscreenElement) { await document.exitFullscreen(); return; }
+      if (playerWrap.requestFullscreen) await playerWrap.requestFullscreen();
+      else if (tg && typeof tg.requestFullscreen === "function") tg.requestFullscreen();
+      else { message.textContent = "Fullscreen is not supported here. Rotate your phone to landscape."; message.classList.remove("hide"); return; }
+      if (screen.orientation && screen.orientation.lock) { try { await screen.orientation.lock("landscape"); } catch (_) {} }
+    } catch (_) { message.textContent = "Enable Auto-rotate on your phone and try again."; message.classList.remove("hide"); }
+  });
+  document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); });
   sponsorLink.href = cfg.monetagSmartLink || "#"; sponsorLink.hidden = !cfg.monetagSmartLink;
 
   function parseM3U(text) {
