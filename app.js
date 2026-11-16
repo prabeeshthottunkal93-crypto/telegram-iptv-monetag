@@ -9,16 +9,42 @@
   const tg = window.Telegram && window.Telegram.WebApp;
   if (tg) { tg.ready(); tg.expand(); document.getElementById("tg-status").textContent = "Telegram Mini App"; }
 
-  rotateButton.addEventListener("click", async () => {
+  let pseudoFullscreen = false;
+  async function enterLandscapeFullscreen() {
     try {
-      if (document.fullscreenElement) { await document.exitFullscreen(); return; }
-      if (playerWrap.requestFullscreen) await playerWrap.requestFullscreen();
-      else if (tg && typeof tg.requestFullscreen === "function") tg.requestFullscreen();
-      else { message.textContent = "Fullscreen is not supported here. Rotate your phone to landscape."; message.classList.remove("hide"); return; }
-      if (screen.orientation && screen.orientation.lock) { try { await screen.orientation.lock("landscape"); } catch (_) {} }
-    } catch (_) { message.textContent = "Enable Auto-rotate on your phone and try again."; message.classList.remove("hide"); }
+      if (tg && typeof tg.requestFullscreen === "function") {
+        tg.requestFullscreen();
+        if (typeof tg.lockOrientation === "function") tg.lockOrientation();
+      } else if (playerWrap.requestFullscreen) {
+        await playerWrap.requestFullscreen();
+        if (screen.orientation && screen.orientation.lock) { try { await screen.orientation.lock("landscape"); } catch (_) {} }
+      } else {
+        playerWrap.classList.add("is-fullscreen"); document.body.classList.add("player-fullscreen"); pseudoFullscreen = true;
+        if (screen.orientation && screen.orientation.lock) { try { await screen.orientation.lock("landscape"); } catch (_) {} }
+      }
+      rotateButton.textContent = "✕ Exit fullscreen";
+    } catch (_) {
+      playerWrap.classList.add("is-fullscreen"); document.body.classList.add("player-fullscreen"); pseudoFullscreen = true;
+      rotateButton.textContent = "✕ Exit fullscreen";
+      message.textContent = "Fullscreen opened. Turn on Auto-rotate and rotate your phone sideways if it does not rotate automatically.";
+      message.classList.remove("hide");
+    }
+  }
+  async function exitLandscapeFullscreen() {
+    if (pseudoFullscreen) { playerWrap.classList.remove("is-fullscreen"); document.body.classList.remove("player-fullscreen"); pseudoFullscreen = false; }
+    if (tg && typeof tg.exitFullscreen === "function") tg.exitFullscreen();
+    else if (document.fullscreenElement) await document.exitFullscreen();
+    if (tg && typeof tg.unlockOrientation === "function") tg.unlockOrientation();
+    else if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+    rotateButton.textContent = "⛶ Fullscreen";
+  }
+  rotateButton.addEventListener("click", async () => {
+    const active = pseudoFullscreen || !!document.fullscreenElement || (tg && tg.isFullscreen);
+    if (active) await exitLandscapeFullscreen(); else await enterLandscapeFullscreen();
   });
-  document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); });
+  document.addEventListener("fullscreenchange", () => {
+    if (!document.fullscreenElement && !pseudoFullscreen) rotateButton.textContent = "⛶ Fullscreen";
+  });
   sponsorLink.href = cfg.monetagSmartLink || "#"; sponsorLink.hidden = !cfg.monetagSmartLink;
 
   function parseM3U(text) {
