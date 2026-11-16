@@ -10,40 +10,64 @@
   if (tg) { tg.ready(); tg.expand(); document.getElementById("tg-status").textContent = "Telegram Mini App"; }
 
   let pseudoFullscreen = false;
+  let telegramFullscreen = false;
+  function tell(messageText) { message.textContent = messageText; message.classList.remove("hide"); }
+  function onOrientationChange() {
+    const landscape = window.matchMedia("(orientation: landscape)").matches;
+    if (landscape && tg && tg.isFullscreen && typeof tg.lockOrientation === "function") {
+      try { tg.lockOrientation(); tell("Landscape mode is active."); } catch (_) {}
+    }
+  }
   async function enterLandscapeFullscreen() {
     try {
       if (tg && typeof tg.requestFullscreen === "function") {
         tg.requestFullscreen();
-        if (typeof tg.lockOrientation === "function") tg.lockOrientation();
-      } else if (playerWrap.requestFullscreen) {
-        await playerWrap.requestFullscreen();
-        if (screen.orientation && screen.orientation.lock) { try { await screen.orientation.lock("landscape"); } catch (_) {} }
-      } else {
-        playerWrap.classList.add("is-fullscreen"); document.body.classList.add("player-fullscreen"); pseudoFullscreen = true;
-        if (screen.orientation && screen.orientation.lock) { try { await screen.orientation.lock("landscape"); } catch (_) {} }
+        telegramFullscreen = true;
+        rotateButton.textContent = "✕ Exit fullscreen";
+        tell("Fullscreen requested. Now turn your phone sideways. Once the screen is landscape, orientation will be locked.");
+        window.addEventListener("orientationchange", onOrientationChange);
+        if (window.matchMedia("(orientation: landscape)").matches && typeof tg.lockOrientation === "function") tg.lockOrientation();
+        return;
       }
-      rotateButton.textContent = "✕ Exit fullscreen";
-    } catch (_) {
+      if (playerWrap.requestFullscreen) {
+        await playerWrap.requestFullscreen();
+        if (screen.orientation && screen.orientation.lock) {
+          try { await screen.orientation.lock("landscape"); } catch (_) { tell("Fullscreen is active. If the screen stays upright, enable Auto-rotate and turn your phone sideways."); }
+        }
+        rotateButton.textContent = "✕ Exit fullscreen";
+        return;
+      }
       playerWrap.classList.add("is-fullscreen"); document.body.classList.add("player-fullscreen"); pseudoFullscreen = true;
       rotateButton.textContent = "✕ Exit fullscreen";
-      message.textContent = "Fullscreen opened. Turn on Auto-rotate and rotate your phone sideways if it does not rotate automatically.";
-      message.classList.remove("hide");
+      tell("Fullscreen view opened. Enable Auto-rotate and turn your phone sideways.");
+    } catch (_) {
+      tell("Telegram did not allow fullscreen. Update Telegram and try again, or open this player in Chrome.");
     }
   }
   async function exitLandscapeFullscreen() {
+    window.removeEventListener("orientationchange", onOrientationChange);
     if (pseudoFullscreen) { playerWrap.classList.remove("is-fullscreen"); document.body.classList.remove("player-fullscreen"); pseudoFullscreen = false; }
-    if (tg && typeof tg.exitFullscreen === "function") tg.exitFullscreen();
+    if (tg && telegramFullscreen && typeof tg.exitFullscreen === "function") tg.exitFullscreen();
     else if (document.fullscreenElement) await document.exitFullscreen();
     if (tg && typeof tg.unlockOrientation === "function") tg.unlockOrientation();
     else if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+    telegramFullscreen = false;
     rotateButton.textContent = "⛶ Fullscreen";
   }
   rotateButton.addEventListener("click", async () => {
-    const active = pseudoFullscreen || !!document.fullscreenElement || (tg && tg.isFullscreen);
+    const active = pseudoFullscreen || telegramFullscreen || !!document.fullscreenElement || (tg && tg.isFullscreen);
     if (active) await exitLandscapeFullscreen(); else await enterLandscapeFullscreen();
   });
+  if (tg && typeof tg.onEvent === "function") {
+    tg.onEvent("fullscreenFailed", event => tell("Telegram fullscreen unavailable: " + ((event && event.error) || "unsupported") + ". Update Telegram or open the player in Chrome."));
+    tg.onEvent("fullscreenChanged", () => {
+      telegramFullscreen = !!tg.isFullscreen;
+      rotateButton.textContent = telegramFullscreen ? "✕ Exit fullscreen" : "⛶ Fullscreen";
+      if (telegramFullscreen) tell("Fullscreen active. Turn your phone sideways for landscape. The player will lock after rotation.");
+    });
+  }
   document.addEventListener("fullscreenchange", () => {
-    if (!document.fullscreenElement && !pseudoFullscreen) rotateButton.textContent = "⛶ Fullscreen";
+    if (!document.fullscreenElement && !pseudoFullscreen && !telegramFullscreen) rotateButton.textContent = "⛶ Fullscreen";
   });
   sponsorLink.href = cfg.monetagSmartLink || "#"; sponsorLink.hidden = !cfg.monetagSmartLink;
 
